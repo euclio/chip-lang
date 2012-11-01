@@ -1,13 +1,13 @@
 package chipLang.ir
 
-package object ir {
-  val DEFAULT_TIME_SIG = TimeSignature(4, 4)
-  val DEFAULT_BPM = BPM(160)
+object constants {
+  val DefaultTimeSig = TimeSignature(4, 4)
+  val DefaultBPM = BPM(160)
 }
 
 case class Song(ps: List[Verse])
 
-case class Verse(ts: TimeSignature = ir.DEFAULT_TIME_SIG, bpm: BPM = ir.DEFAULT_BPM, i: Instrument = Square1, ps: List[Phrase])
+case class Verse(ts: TimeSignature = constants.DefaultTimeSig, bpm: BPM = constants.DefaultBPM, i: Instrument = Square1, ps: List[Phrase])
 
 abstract class Instrument
 object Square1 extends Instrument
@@ -37,5 +37,8 @@ sealed abstract class Accidental
 case object Sharp extends Accidental
 case object Flat extends Accidental
 case object Natural extends Accidental
+  
+
+
 
 
