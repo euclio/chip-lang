@@ -1,24 +1,34 @@
 package chipLang.ir
 
-object constants {
-  val DefaultTimeSig = TimeSignature(4, 4)
-  val DefaultBPM = BPM(160)
-  val DefaultOptions = Options(DefaultTimeSig, DefaultBPM)
-}
-
 sealed abstract class Identifier
 case class PhraseIdentifier extends Identifier
 case class VerseIdentifier extends Identifier
 
 case class Song(ps: List[Phrase])
 
-case class Phrase(opts: Options = constants.DefaultOptions, ps: List[Verse])
+case class Phrase(opts: Options, cs: Channels)
 
 case class Options(ts: TimeSignature, bpm: BPM)
 case class BPM(bpm: Int) { require(40 <= bpm && bpm <= 200 && bpm % 10 == 0) }
 case class TimeSignature(top: Int, bot: Int)
 
-case class Verse(inst: Instrument, channels: List[List[Notation]])
+case class Channels(vs: List[Verse])
+
+case class Verse(inst: Instrument, channels: List[Notes])
+
+case class Notes (ln: List[Notation]) {
+  // Constructor to make a Notes from an octave and a list of Octaveless
+  def this(o: Octave, nl: List[Octaveless]) = {  
+    this(for(n <- nl) yield n match {
+      case s:Sound => Note(o, s)
+      case Rest(d) => Rest(d)
+    })
+  }
+  
+  def this(n1: Notes, n2: Notes) {
+    this(n1.ln ++ n2.ln)
+  }
+}
 
 sealed abstract class Instrument
 case object Square1 extends Instrument
@@ -32,8 +42,12 @@ case object WhiteNoise extends Instrument
 case object SquareDown extends Instrument
 
 sealed abstract class Notation
-case class Rest(d: Duration) extends Notation
-case class Sound(o: Octave, p: Pitch, a: Accidental = Natural, d: Duration = Duration(1)) extends Notation
+sealed trait Octaveless
+case class Note(o: Octave, s: Sound) extends Notation
+case class Sound(p: Pitch, a: Accidental, d: Duration) extends Octaveless
+case class Rest(d: Duration) extends Notation with Octaveless {
+  def this(d: Duration, o: Octave) { this(d) }
+}
 
 case class Pitch(p: Char) { require('A' <= p && p <= 'G') }
 case class Octave(o: Int) { require(0 <= o && o < 9) }
