@@ -3,35 +3,44 @@ package chipLang.syntax
 import scala.util.parsing.combinator._
 import chipLang.ir._
 
-class ChipParser extends RegexParsers with PackratParsers {
+object ChipParser extends RegexParsers with PackratParsers {
   object defaults {
     val TimeSig = TimeSignature(4, 4)
     val BPM = chipLang.ir.BPM(120)
     val Opts = Options(TimeSig, BPM)
   }
 
-  def apply(s: String) = parseAll(song, s)
+  def apply(program: String) = parseAll(song, program)
+
   override val skipWhitespace = false
-  val ws = """\s*""".r
+  val ws = """\s+""".r
 
-  def song: Parser[Song] = rep(phrase) ^^ { Song(_) }
+  def song: Parser[Song] = repsep(phrase, ws) ^^ { case ps => Song(ps) }
 
-  def phrase = opt(options) ~ "{" ~ channels ~ "}" ^^ { case opts ~ "{" ~ cs ~ "}" => Phrase(opts.getOrElse(defaults.Opts), cs) } |
-    verse ^^ { v => Phrase(defaults.Opts, Channels(List(v))) }
+  def phrase: Parser[Phrase] = verseList ^^ { v => Phrase(defaults.Opts, Channels(List(v))) } |
+    options ~ """\s*{\s*""".r ~ channels ~ """\s*}\s*""".r ^^ { case opts ~ _ ~ cs ~ _ => Phrase(opts, cs) }
 
-  def options = opt(timeSig) ~ opt("|" ~> bpm) <~ "|" ^^ { case o ~ b => Options(o.getOrElse(defaults.TimeSig), b.getOrElse(defaults.BPM)) }
+  def options: Parser[Options] = opt(timeSig <~ "|") ~ opt(bpm <~ "|") ^^ { case o ~ b => Options(o.getOrElse(defaults.TimeSig), b.getOrElse(defaults.BPM)) }
 
   def bpm: Parser[BPM] = """\d+""".r ^^ { s => BPM(s.toInt) }
 
   def timeSig: Parser[TimeSignature] = """4/4|2/2|4/2|2/4|3/4|3/8|6/8""".r ^^ { (i => TimeSignature(i.head, i.charAt(i.size - 1))) }
 
   def channels: Parser[Channels] =
-    verse ~ opt(ws) ~ "&" ~ opt(ws) ~ channels ^^ { case v ~ _ ~ "&" ~ _ ~ c => Channels(v :: c.vs) } |
-      verse ^^ { case v => Channels(List(v)) } |
-      repsep(verse, "&") ^^ { Channels(_) }
+    repsep(verseList, "&") ^^ { case vs => Channels(vs) } |
+      verseList ^^ { case v => Channels(List(v)) }
 
-  lazy val verse: PackratParser[Verse] =
-    opt(instrument <~ ":") ~ notes ^^ { case i ~ ns => Verse(i.getOrElse(Square1), List(ns)) }
+  def verseList: Parser[VerseList] = verse ^^ { case v => VerseList(List(v)) } |
+    repsep(verse, "+") ^^ { case vs => VerseList(vs) } |
+    verse ~ "*" ~ """\d+""".r ^^ {
+      case v ~ "*" ~ n => {
+        val verses = Nil
+        for (i <- 0 until n.toInt) v :: verses
+        VerseList(verses)
+      }
+    }
+
+  def verse: Parser[Verse] = opt(instrument <~ ":") ~ notes ^^ { case i ~ ns => Verse(i.getOrElse(Square1), List(ns)) }
 
   lazy val notes: PackratParser[Notes] =
     octave ~ "[" ~ rep(octaveless) ~ "]" ^^ { case o ~ "[" ~ ols ~ "]" => new Notes(o, ols) } |
@@ -62,8 +71,9 @@ class ChipParser extends RegexParsers with PackratParsers {
     "_" ~> rep("~") ^^ { l => Rest(Duration(l.size + 1)) }
 
   def sound: Parser[Sound] =
-    pitch ~ opt(accidental) ~ rep("~") ^^ { case p ~ a ~ ds => Sound(p, a.getOrElse(Natural), Duration(ds.size + 1)) }
-  pitch ~ opt(accidental) ~ "/" ~ """2|4|8""".r ^^ { case p ~ a ~ "/" ~ d => Sound(p, a.getOrElse(Natural), Duration(1 / d.toDouble)) }
+    pitch ~ opt(accidental) ~ duration ^^ {
+      case p ~ a ~ ds => Sound(p, a.getOrElse(Natural), ds)
+    }
 
   def octave: Parser[Octave] =
     "[0-8]".r ^^ { s => Octave(s.toInt) }
@@ -72,14 +82,10 @@ class ChipParser extends RegexParsers with PackratParsers {
     "[A-G]".r ^^ { s => Pitch(s.head) }
 
   def duration: Parser[Duration] =
-    """1|2|4|8""".r ^^ { s => Duration(s.toDouble) } |
-      "1" ~ "/" ~> """2|4|8""".r ^^ { case d => Duration(1 / d.toDouble) }
+    rep("~") ^^ { ts => Duration(ts.length + 1) } |
+      rep("/") ^^ { ds => Duration(1 / ds.length) }
 
   def accidental: Parser[Accidental] =
     "#" ^^ { _ => Sharp } |
       "b" ^^ { _ => Flat }
-}
-
-object Main extends App {
-  print(new ChipParser().apply("1A#~~~"))
 }

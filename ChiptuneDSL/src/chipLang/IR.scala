@@ -12,21 +12,27 @@ case class Options(ts: TimeSignature, bpm: BPM)
 case class BPM(bpm: Int) { require(40 <= bpm && bpm <= 200 && bpm % 10 == 0) }
 case class TimeSignature(top: Int, bot: Int)
 
-case class Channels(vs: List[Verse])
+case class Channels(vs: List[VerseList])
 
-case class Verse(inst: Instrument, channels: List[Notes])
+case class VerseList(vs: List[Verse])
 
-case class Notes (ln: List[Notation]) {
+case class Verse(inst: Instrument, notes: List[Notes])
+
+case class Notes(ln: List[Notation]) {
   // Constructor to make a Notes from an octave and a list of Octaveless
-  def this(o: Octave, nl: List[Octaveless]) = {  
-    this(for(n <- nl) yield n match {
-      case s:Sound => Note(o, s)
-      case Rest(d) => Rest(d)
+  def this(o: Octave, nl: List[Octaveless]) = {
+    this(for (n <- nl) yield n match {
+      case s: Sound => Note(o, s)
+      case s: Rest => s
     })
   }
-  
+
   def this(n1: Notes, n2: Notes) {
     this(n1.ln ++ n2.ln)
+  }
+  
+  def + (ns: Notes) {
+    Notes(this.ln ++ ns.ln)
   }
 }
 
