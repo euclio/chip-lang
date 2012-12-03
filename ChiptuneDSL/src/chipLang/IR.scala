@@ -1,24 +1,30 @@
 package chipLang.ir
 
-sealed abstract class Identifier
-case class PhraseIdentifier extends Identifier
-case class VerseIdentifier extends Identifier
+case class Song(phrases: List[Phrase])
 
-case class Song(ps: List[Phrase])
+sealed abstract class Phrase
+case class PhraseAssignment(identifier: String, phrase: PhraseStatement) extends Phrase
+case class PhraseIdentifier(name: String) extends Phrase
+case class PhraseStatement(bpm: Option[Int], channels: Channels) extends Phrase {
+  bpm match {
+    case beats: Some[Int] => require(40 <= beats.get && beats.get <= 200 && beats.get % 10 == 0)
+    case None => ()
+  }
+}
 
-case class Phrase(opts: Options, cs: Channels)
+//case class TimeSignature(top: Int, bot: Int)
 
-case class Options(ts: TimeSignature, bpm: BPM)
-case class BPM(bpm: Int) { require(40 <= bpm && bpm <= 200 && bpm % 10 == 0) }
-case class TimeSignature(top: Int, bot: Int)
+case class Channels(vs: List[Verse])
 
-case class Channels(vs: List[VerseList])
+//case class VerseList(vs: List[Verse])
 
-case class VerseList(vs: List[Verse])
+sealed abstract class Verse
+case class VerseAssignment(identifier: String, statement: VerseStatement) extends Verse
+case class VerseIdentifier(name: String) extends Verse
+case class VerseStatement(verses: List[VerseSingleton]) extends Verse
+case class VerseSingleton(inst: Option[Instrument], notes: Notes)
 
-case class Verse(inst: Instrument, notes: List[Notes])
-
-case class Notes(ln: List[Notation]) {
+case class Notes(noteList: List[Notation]) {
   // Constructor to make a Notes from an octave and a list of Octaveless
   def this(o: Octave, nl: List[Octaveless]) = {
     this(for (n <- nl) yield n match {
@@ -28,11 +34,11 @@ case class Notes(ln: List[Notation]) {
   }
 
   def this(n1: Notes, n2: Notes) {
-    this(n1.ln ++ n2.ln)
+    this(n1.noteList ++ n2.noteList)
   }
-  
-  def + (ns: Notes) {
-    Notes(this.ln ++ ns.ln)
+
+  def +(ns: Notes) {
+    Notes(this.noteList ++ ns.noteList)
   }
 }
 
@@ -49,21 +55,16 @@ case object SquareDown extends Instrument
 
 sealed abstract class Notation
 sealed trait Octaveless
-case class Note(o: Octave, s: Sound) extends Notation
-case class Sound(p: Pitch, a: Accidental, d: Duration) extends Octaveless
-case class Rest(d: Duration) extends Notation with Octaveless {
-  def this(d: Duration, o: Octave) { this(d) }
+case class Note(octave: Octave, sound: Sound) extends Notation
+case class Sound(pitch: Pitch, accidental: Accidental, dur: Duration) extends Octaveless
+case class Rest(duration: Duration) extends Notation with Octaveless {
+  def this(duration: Duration, o: Octave) { this(duration) }
 }
 
-case class Pitch(p: Char) { require('A' <= p && p <= 'G') }
-case class Octave(o: Int) { require(0 <= o && o < 9) }
-case class Duration(d: Double)
+case class Pitch(pitch: Char) { require('A' <= pitch && pitch <= 'G') }
+case class Octave(octave: Int) { require(0 <= octave && octave < 9) }
+case class Duration(duration: Double)
 sealed abstract class Accidental
 case object Sharp extends Accidental
 case object Flat extends Accidental
 case object Natural extends Accidental
-  
-
-
-
-
