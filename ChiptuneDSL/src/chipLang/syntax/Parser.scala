@@ -4,48 +4,46 @@ import scala.util.parsing.combinator._
 import chipLang.ir._
 
 object ChipParser extends RegexParsers with PackratParsers {
-  object defaults {
-    val TimeSig = TimeSignature(4, 4)
-    val BPM = chipLang.ir.BPM(120)
-    val Opts = Options(TimeSig, BPM)
-  }
-
   def apply(program: String) = parseAll(song, program)
 
-  override val skipWhitespace = false
-  val ws = """\s+""".r
+  override def skipWhitespace = false
+  val ws = """\s*""".r
+  val wsReq = """\s+""".r
 
-  def song: Parser[Song] = repsep(phrase, ws) ^^ { case ps => Song(ps) }
+  lazy val song: PackratParser[Song] = repsep(phrase, wsReq) ^^ { case ps => Song(ps) }
 
-  def phrase: Parser[Phrase] = verseList ^^ { v => Phrase(defaults.Opts, Channels(List(v))) } |
-    options ~ """\s*{\s*""".r ~ channels ~ """\s*}\s*""".r ^^ { case opts ~ _ ~ cs ~ _ => Phrase(opts, cs) }
+  def identifier = """[A-Za-z][A-Za-z0-9]*""".r
 
-  def options: Parser[Options] = opt(timeSig <~ "|") ~ opt(bpm <~ "|") ^^ { case o ~ b => Options(o.getOrElse(defaults.TimeSig), b.getOrElse(defaults.BPM)) }
+  def assignment: Parser[String] = identifier <~ ws ~ "="
 
-  def bpm: Parser[BPM] = """\d+""".r ^^ { s => BPM(s.toInt) }
+  lazy val phrase: PackratParser[Phrase] = phraseStatement |
+    assignment ~ ws ~ phraseStatement ^^ { case identifier ~ _ ~ phrase => PhraseAssignment(identifier, phrase) } |
+    identifier ^^ { PhraseIdentifier(_) }
 
-  def timeSig: Parser[TimeSignature] = """4/4|2/2|4/2|2/4|3/4|3/8|6/8""".r ^^ { (i => TimeSignature(i.head, i.charAt(i.size - 1))) }
+  def phraseStatement: Parser[PhraseStatement] = repsep(verse, wsReq) ^^ { v => PhraseStatement(None, Channels(v)) } |
+    opt(bpm) ~ ((ws ~ "{" ~ ws) ~> channels <~ (ws ~ "}" ~ ws)) ^^ { case opts ~ cs => PhraseStatement(opts, cs) }
+
+  def bpm: Parser[Int] = (ws ~ "(" ~ ws) ~> """\d+""".r <~ (ws ~ ")" ~ ws) ^^ { _.toInt }
 
   def channels: Parser[Channels] =
-    repsep(verseList, "&") ^^ { case vs => Channels(vs) } |
-      verseList ^^ { case v => Channels(List(v)) }
+    repsep(verse, (ws ~ "&" ~ ws)) ^^ { case vs => Channels(vs) } |
+      verse ^^ { case v => Channels(List(v)) }
 
-  def verseList: Parser[VerseList] = verse ^^ { case v => VerseList(List(v)) } |
-    repsep(verse, "+") ^^ { case vs => VerseList(vs) } |
-    verse ~ "*" ~ """\d+""".r ^^ {
-      case v ~ "*" ~ n => {
-        val verses = Nil
-        for (i <- 0 until n.toInt) v :: verses
-        VerseList(verses)
-      }
-    }
+  lazy val verse: PackratParser[Verse] = assignment ~ ws ~ verseList ^^ { case assignment ~ _ ~ vList => VerseAssignment(assignment, VerseStatement(vList)) } |
+    identifier ^^ { VerseIdentifier(_) } |
+    verseList ^^ { VerseStatement(_) }
 
-  def verse: Parser[Verse] = opt(instrument <~ ":") ~ notes ^^ { case i ~ ns => Verse(i.getOrElse(Square1), ns) }
+  lazy val verseList: PackratParser[List[VerseSingleton]] =
+    verseSingleton ~ (ws ~ "*" ~ ws) ~ """\d+""".r ^^ { case vs ~ _ ~ n => List.fill(n.toInt)(vs) } |
+      repsep(verseSingleton, (ws ~ "+" ~ ws)) |
+      verseSingleton ^^ { List(_) }
 
-  lazy val notes: PackratParser[Notes] =
-    rep1(notation) ^^ { case notations => Notes(notations) } |
-      notes ~ notes ^^ { case n1 ~ n2 => new Notes(n1, n2) } |
-      octave ~ "[" ~ repsep(octaveless, ws) ~ "]" ^^ { case o ~ "[" ~ ols ~ "]" => new Notes(o, ols) }
+  def verseSingleton: Parser[VerseSingleton] = opt(instrument <~ ws ~ ":") ~ ws ~ notes ^^ { case i ~ _ ~ ns => VerseSingleton(i, ns) }
+
+  def notes: Parser[Notes] =
+    octave ~ ws ~ ("[" ~ ws ~> repsep(octaveless, wsReq) <~ ws ~ "]") ^^ { case o ~ _ ~ ols => new Notes(o, ols) } |
+      repsep(notation, wsReq) ^^ { case notations => Notes(notations) } |
+      notes ~ wsReq ~ notes ^^ { case n1 ~ _ ~ n2 => new Notes(n1, n2) }
 
   def instrument: Parser[Instrument] =
     """SQ1|SQ2|SQ3|SQ4|SAW|TRI|SIN|WHI|SQD""".r ^^ {
@@ -83,7 +81,7 @@ object ChipParser extends RegexParsers with PackratParsers {
 
   def duration: Parser[Duration] =
     rep1("~") ^^ { ts => Duration(ts.length + 1) } |
-      rep1("/") ^^ { ds => Duration(1 / ds.length) }
+      rep1("/") ^^ { ds => Duration(1 / Math.pow(2, ds.length)) }
 
   def accidental: Parser[Accidental] =
     "#" ^^ { _ => Sharp } |
