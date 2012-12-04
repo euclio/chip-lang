@@ -10,35 +10,39 @@ object ChipParser extends RegexParsers with PackratParsers {
   val ws = """\s*""".r
   val wsReq = """\s+""".r
 
-  lazy val song: PackratParser[Song] = repsep(phrase, wsReq) ^^ { case ps => Song(ps) }
+  def song: Parser[Song] = repsep(phrase, (ws ~ ";" ~ ws)) ^^ { case ps => Song(ps) }
 
   def identifier = """[A-Za-z][A-Za-z0-9]*""".r
 
   def assignment: Parser[String] = identifier <~ ws ~ "="
 
-  lazy val phrase: PackratParser[Phrase] = phraseStatement |
+  lazy val phrase: PackratParser[Phrase] =
     assignment ~ ws ~ phraseStatement ^^ { case identifier ~ _ ~ phrase => PhraseAssignment(identifier, phrase) } |
-    identifier ^^ { PhraseIdentifier(_) }
+      identifier ^^ { PhraseIdentifier(_) } |
+      phraseStatement
 
-  def phraseStatement: Parser[PhraseStatement] = repsep(verse, wsReq) ^^ { v => PhraseStatement(None, Channels(v)) } |
-    opt(bpm) ~ ((ws ~ "{" ~ ws) ~> channels <~ (ws ~ "}" ~ ws)) ^^ { case opts ~ cs => PhraseStatement(opts, cs) }
+  lazy val phraseStatement: PackratParser[PhraseStatement] =
+    opt(bpm) ~ (ws ~ "{" ~ ws) ~ channels <~ (ws ~ "}" ~ ws) ^^ { case opts ~ _ ~ cs => PhraseStatement(opts, cs) } |
+    opt(bpm) ~ verse ^^ { case opts ~ v => PhraseStatement(opts, Channels(List(v))) }
+      
 
-  def bpm: Parser[Int] = (ws ~ "(" ~ ws) ~> """\d+""".r <~ (ws ~ ")" ~ ws) ^^ { _.toInt }
+  def bpm: Parser[Int] = ("(" ~ ws) ~> """\d+""".r <~ (ws ~ ")") ^^ { _.toInt }
 
   def channels: Parser[Channels] =
     repsep(verse, (ws ~ "&" ~ ws)) ^^ { case vs => Channels(vs) } |
       verse ^^ { case v => Channels(List(v)) }
 
-  lazy val verse: PackratParser[Verse] = assignment ~ ws ~ verseList ^^ { case assignment ~ _ ~ vList => VerseAssignment(assignment, VerseStatement(vList)) } |
-    identifier ^^ { VerseIdentifier(_) } |
-    verseList ^^ { VerseStatement(_) }
+  lazy val verse: PackratParser[Verse] =
+    assignment ~ ws ~ verseList ^^ { case assignment ~ _ ~ vList => VerseAssignment(assignment, VerseStatement(vList)) } |
+      identifier ^^ { VerseIdentifier(_) } |
+      verseList ^^ { VerseStatement(_) }
 
   lazy val verseList: PackratParser[List[VerseSingleton]] =
-    verseSingleton ~ (ws ~ "*" ~ ws) ~ """\d+""".r ^^ { case vs ~ _ ~ n => List.fill(n.toInt)(vs) } |
+    verseSingleton ~ (ws ~ "*" ~ ws ~> """\d+""".r) ^^ { case vs ~ n => List.fill(n.toInt)(vs) } |
       repsep(verseSingleton, (ws ~ "+" ~ ws)) |
       verseSingleton ^^ { List(_) }
 
-  def verseSingleton: Parser[VerseSingleton] = opt(instrument <~ ws ~ ":") ~ ws ~ notes ^^ { case i ~ _ ~ ns => VerseSingleton(i, ns) }
+  def verseSingleton: Parser[VerseSingleton] = opt("|" ~> instrument <~ "|") ~ ws ~ notes ^^ { case i ~ _ ~ ns => VerseSingleton(i, ns) }
 
   def notes: Parser[Notes] =
     octave ~ ws ~ ("[" ~ ws ~> repsep(octaveless, wsReq) <~ ws ~ "]") ^^ { case o ~ _ ~ ols => new Notes(o, ols) } |
