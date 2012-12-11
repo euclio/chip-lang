@@ -168,29 +168,31 @@ package object semantics {
     println("Compilation to 'output.midi' successful.")
     println("Playing chiptune...")
     Song.play()
-    println("Computation complete.")
   }
 
   def addPhrase(p: Phrase): Unit = {
     // Determine if the given Phrase is an Assignment, Statement, or Identifier
     val phrase: PhraseStatement = p match {
+      // If it's an identifier, find the name in the store and retrieve its value
       case i: PhraseIdentifier => {
         SongState.phraseStore.get(i.name) match {
           case p: Some[PhraseStatement] => p.get
           case None => throw new NoSuchFieldException("Error: phrase identifier '%s' not bound.".format(i.name))
         }
       }
+      // If it's a statement, just use the statement
       case s: PhraseStatement => s
+      // If it's an assignment, add the value to the store and use the statement
       case a: PhraseAssignment => {
-        // If the phrase is an assignment, add the value to the store
         SongState.phraseStore += a.identifier -> a.phrase
         a.phrase
       }
     }
 
+    // If there's a BPM, then change the Song's speed
     phrase.bpm match {
       case bpm: Some[Int] => Song.setSpeed(bpm.get)
-      case None => Unit
+      case None => ()
     }
 
     playChannel(phrase.channels)
@@ -213,15 +215,17 @@ package object semantics {
   def playVerse(v: Verse, channel: Int) {
     // Determine if the given Verse is an Assignment, Statement, or Identifier
     val verses: List[VerseSingleton] = v match {
+      // If it's an identifier, find the name in the store and retrieve its value
       case i: VerseIdentifier => {
         SongState.verseStore.get(i.name) match {
           case v: Some[VerseStatement] => v.get.verses
           case None => throw new NoSuchFieldException("Error: verse identifier '%s' not bound.".format(i.name))
         }
       }
+      // If it's a statement, just use the statement's verses
       case s: VerseStatement => s.verses
+      // If the phrase is an assignment, add the value to the store and use the verses
       case a: VerseAssignment => {
-        // If the phrase is an assignment, add the value to the store
         SongState.verseStore += a.identifier -> a.statement
         a.statement.verses
       }
@@ -238,7 +242,6 @@ package object semantics {
   }
 
   def addNotes(notes: Notes, channel: Int) {
-
     for (n <- notes.noteList) {
       n match {
         case Note(Octave(octave), Sound(Pitch(pitch), accidental, Duration(modifiers, numDots))) => {
