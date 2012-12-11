@@ -95,7 +95,7 @@ package object semantics {
       }
 
       // Add the instrument change to the Song
-      val programChange = new ShortMessage(ShortMessage.PROGRAM_CHANGE, patch, channel)
+      val programChange = new ShortMessage(ShortMessage.PROGRAM_CHANGE, channel, patch, 0)
       addEvent(programChange)
     }
 
@@ -104,13 +104,13 @@ package object semantics {
      *  at the appropriate times relative to the supplied
      *  duration.
      */
-    def addNote(pitch: Int, duration: Double) {
+    def addNote(pitch: Int, duration: Double, channel: Int) {
       // Note volume
       val Pressure = 80
 
       // The MIDI messages to be added to the song.
-      val noteOn = new ShortMessage(ShortMessage.NOTE_ON, pitch, Pressure)
-      val noteOff = new ShortMessage(ShortMessage.NOTE_OFF, pitch, Pressure)
+      val noteOn = new ShortMessage(ShortMessage.NOTE_ON, channel, pitch, Pressure)
+      val noteOff = new ShortMessage(ShortMessage.NOTE_OFF, channel, pitch, Pressure)
 
       // Calculate the length of the tick between NoteOn and NoteOff
       val durationInPPQ = Math.round(duration * PPQ)
@@ -125,7 +125,7 @@ package object semantics {
      * Wrapper method to tick the program counter the appropriate
      * amount to simulate a rest.
      */
-    def addRest(duration: Double) {
+    def addRest(duration: Double, channel: Int) {
       val durationInPPQ = Math.round(duration * PPQ)
       tick(durationInPPQ)
     }
@@ -134,12 +134,13 @@ package object semantics {
      * Ticks the MIDI program counter the given amount
      */
     def tick(amount: Long) {
-      pc += amount  
+      pc += amount
       greatestPC = scala.math.max(pc, greatestPC)
     }
 
     def write() {
       tick(PPQ)
+      addEvent(new ShortMessage())
       MidiSystem.write(seq, 1, new File("output.midi"))
 
     }
@@ -147,8 +148,9 @@ package object semantics {
     def play() {
       sequencer.setSequence(seq)
       sequencer.start()
-      while(sequencer.isRunning()) {
-        // Do nothing
+      while (sequencer.isRunning()) {
+        // Do nothing, program fails to quit without pause
+        Thread.sleep(100)
       }
       sequencer.close()
     }
@@ -163,7 +165,10 @@ package object semantics {
       addPhrase(p)
 
     Song.write()
+    println("Compilation to 'output.midi' successful.")
+    println("Playing chiptune...")
     Song.play()
+    println("Computation complete.")
   }
 
   def addPhrase(p: Phrase): Unit = {
@@ -172,7 +177,7 @@ package object semantics {
       case i: PhraseIdentifier => {
         SongState.phraseStore.get(i.name) match {
           case p: Some[PhraseStatement] => p.get
-          case None => throw new NoSuchFieldException("Error: phrase identifier {0} not bound.".format(i.name))
+          case None => throw new NoSuchFieldException("Error: phrase identifier '%s' not bound.".format(i.name))
         }
       }
       case s: PhraseStatement => s
@@ -228,14 +233,15 @@ package object semantics {
         case None => Unit
       }
 
-      addNotes(s.notes)
+      addNotes(s.notes, channel)
     }
   }
 
-  def addNotes(notes: Notes) {
+  def addNotes(notes: Notes, channel: Int) {
+
     for (n <- notes.noteList) {
       n match {
-        case Note(Octave(octave), Sound(Pitch(pitch), accidental, Duration(duration))) => {
+        case Note(Octave(octave), Sound(Pitch(pitch), accidental, Duration(modifiers, numDots))) => {
           // Increment if sharp, decrement if flat, do nothing if natural
           val accNum = accidental match {
             case Sharp => 1
@@ -254,16 +260,40 @@ package object semantics {
             case 'B' => 11
           }
 
+          val duration = calculateDuration(modifiers, numDots)
+
           // Calculate the number representing the given note
           val midiNumber = 12 * octave + pitchNum + accNum
 
-          Song.addNote(midiNumber, duration)
+          Song.addNote(midiNumber, duration, channel)
         }
 
-        case Rest(Duration(duration)) => {
-          Song.addRest(duration)
+        case Rest(Duration(modifiers, numDots)) => {
+          val duration = calculateDuration(modifiers, numDots)
+
+          Song.addRest(duration, channel)
         }
       }
     }
+  }
+
+  def calculateDuration(modifiers: List[LengthModifier], numDots: Int) = {
+    // Default duration is 1.0
+    var duration = 1.0
+
+    // Halve or extend the duration based on the encountered modifiers
+    for (m <- modifiers) {
+      m match {
+        case Extend => duration += 1
+        case Halve => duration /= 2
+      }
+    }
+
+    // Apply the formula for dots for each dot
+    for (i <- 0 until numDots) {
+      duration += duration - duration / Math.pow(2, i + 1)
+    }
+
+    duration
   }
 }

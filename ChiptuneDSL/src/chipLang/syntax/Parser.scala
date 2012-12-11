@@ -23,8 +23,7 @@ object ChipParser extends RegexParsers with PackratParsers {
 
   lazy val phraseStatement: PackratParser[PhraseStatement] =
     opt(bpm) ~ (ws ~ "{" ~ ws) ~ channels <~ (ws ~ "}" ~ ws) ^^ { case opts ~ _ ~ cs => PhraseStatement(opts, cs) } |
-    opt(bpm) ~ verse ^^ { case opts ~ v => PhraseStatement(opts, Channels(List(v))) }
-      
+      opt(bpm) ~ verse ^^ { case opts ~ v => PhraseStatement(opts, Channels(List(v))) }
 
   def bpm: Parser[Int] = ("(" ~ ws) ~> """\d+""".r <~ (ws ~ ")") ^^ { _.toInt }
 
@@ -70,11 +69,11 @@ object ChipParser extends RegexParsers with PackratParsers {
   def octaveless: Parser[Octaveless] = sound | rest
 
   def rest: Parser[Rest] =
-    "_" ~> opt(duration) ^^ { dur => Rest(dur.getOrElse(Duration(1))) }
+    "_" ~> duration ^^ { dur => Rest(dur) }
 
   def sound: Parser[Sound] =
-    pitch ~ opt(accidental) ~ opt(duration) ^^ {
-      case pitch ~ acc ~ dur => Sound(pitch, acc.getOrElse(Natural), dur.getOrElse(Duration(1)))
+    pitch ~ opt(accidental) ~ duration ^^ {
+      case pitch ~ acc ~ dur => Sound(pitch, acc.getOrElse(Natural), dur)
     }
 
   def octave: Parser[Octave] =
@@ -83,10 +82,20 @@ object ChipParser extends RegexParsers with PackratParsers {
   def pitch: Parser[Pitch] =
     "[A-G]".r ^^ { s => Pitch(s.head) }
 
+  // duration ::= [ "~" | "/" ], [ "." ];
   def duration: Parser[Duration] =
-    rep1("~") ^^ { ts => Duration(ts.length + 1) } |
-      rep1("/") ^^ { ds => Duration(1 / Math.pow(2, ds.length)) }
+    rep("~" | "/") ~ rep(".") ^^ {
+      case lengthMods ~ dots =>
+        val lengthModifiers = lengthMods.map {
+          _ match {
+            case "~" => Extend
+            case "/" => Halve
+          }
+        }
+        Duration(lengthModifiers, dots.length)
+    }
 
+  // accidental ::= "#" | "b";
   def accidental: Parser[Accidental] =
     "#" ^^ { _ => Sharp } |
       "b" ^^ { _ => Flat }

@@ -5,18 +5,9 @@ case class Song(phrases: List[Phrase])
 sealed abstract class Phrase
 case class PhraseAssignment(identifier: String, phrase: PhraseStatement) extends Phrase
 case class PhraseIdentifier(name: String) extends Phrase
-case class PhraseStatement(bpm: Option[Int], channels: Channels) extends Phrase {
-  bpm match {
-    case beats: Some[Int] => require(40 <= beats.get && beats.get <= 200 && beats.get % 10 == 0)
-    case None => ()
-  }
-}
-
-//case class TimeSignature(top: Int, bot: Int)
+case class PhraseStatement(bpm: Option[Int], channels: Channels) extends Phrase
 
 case class Channels(vs: List[Verse])
-
-//case class VerseList(vs: List[Verse])
 
 sealed abstract class Verse
 case class VerseAssignment(identifier: String, statement: VerseStatement) extends Verse
@@ -63,7 +54,12 @@ case class Rest(duration: Duration) extends Notation with Octaveless {
 
 case class Pitch(pitch: Char) { require('A' <= pitch && pitch <= 'G') }
 case class Octave(octave: Int) { require(0 <= octave && octave < 9) }
-case class Duration(duration: Double)
+
+case class Duration(lengthMods: List[LengthModifier], dots: Int)
+sealed abstract class LengthModifier
+case object Extend extends LengthModifier
+case object Halve extends LengthModifier
+
 sealed abstract class Accidental
 case object Sharp extends Accidental
 case object Flat extends Accidental
