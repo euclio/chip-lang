@@ -11,22 +11,37 @@ class TestSuite extends Suites(
 
 class NoteTests extends FunSpec with ChipFunctions {
   describe("A note") {
-    it("Has an octave between 0 and 8") {
+    it("has an octave between 0 and 8") {
       parsing("0A") should equal(success)
       parsing("8A") should equal(success)
       parsing("10A") should equal(failure)
       parsing("-1C") should equal(failure)
     }
 
-    it("Has a pitch between A and G") {
+    it("has a pitch between A and G") {
       parsing("5A") should equal(success)
       parsing("5E") should equal(success)
       parsing("5H") should equal(failure)
     }
 
-    it("Can have a variable duration") {
+    it("can have a variable duration") {
       parsing("5C~~~") should equal(success)
       parsing("5C///") should equal(success)
+      parsing("5C~/.") should equal(success)
+      parsing("5C./~") should equal(failure)
+    }
+  }
+  
+  describe("A rest") {
+    it("can stand alone") {
+      parsing("_") should equal(success)
+    } 
+    
+    it("can have a duration") {
+      parsing("_~") should equal(success)
+      parsing("_/") should equal(success)
+      parsing("_~/.") should equal(success)
+      parsing("_.~") should equal(failure)
     }
   }
 }
