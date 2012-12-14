@@ -19,8 +19,8 @@ To run chipLang, type
 
 
 There are five included example programs:
-*percussion.cl
-*control.cl
-*prelude.cl
-*crystalTower.cl
-*marioBros.cl
+* percussion.cl
+* control.cl
+* prelude.cl
+* crystalTower.cl
+* marioBros.cl
