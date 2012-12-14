@@ -123,7 +123,7 @@ package object semantics {
       val noteOff = new ShortMessage(ShortMessage.NOTE_OFF, channel, pitch, Pressure)
 
       // Calculate the length of the tick between NoteOn and NoteOff
-      val durationInPPQ = Math.round(duration * PPQ)
+      val durationInPPQ = scala.math.round(duration * PPQ)
 
       // Add the appropriate messages to the Song
       addEvent(noteOn)
@@ -136,7 +136,7 @@ package object semantics {
      * amount to simulate a rest.
      */
     def addRest(duration: Double, channel: Int) {
-      val durationInPPQ = Math.round(duration * PPQ)
+      val durationInPPQ = scala.math.round(duration * PPQ)
       tick(durationInPPQ)
     }
 
@@ -328,7 +328,7 @@ package object semantics {
 
     // Apply the formula for dots for each dot
     for (i <- 0 until numDots) {
-      duration += duration - duration / Math.pow(2, i + 1)
+      duration += duration - duration / scala.math.pow(2, i + 1)
     }
 
     duration
