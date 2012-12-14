@@ -113,6 +113,9 @@ package object semantics {
      *  duration.
      */
     def addNote(pitch: Int, duration: Double, channel: Int) {
+      // MIDI only supports 16 channels
+      if (channel > 16) throw new IndexOutOfBoundsException("Can only play 16 simultaneous channels")
+      
       // Note volume
       val Pressure = 80
 
@@ -230,6 +233,7 @@ package object semantics {
 
       // Increment channel so notes in a different verse 
       // will go on a different channel
+
       channel += 1
     }
 
