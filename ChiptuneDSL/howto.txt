@@ -4,7 +4,7 @@ Welcome to ChipLang!
 Building the language
 ---------------------
 
-Please ensure that you have Java 7 and Scala installed on your computer.
+ChipLang requires Java 7 and Scala to run.
 
 To build the language, type
 
@@ -16,7 +16,6 @@ Running the language
 To run chipLang, type
 
 	scala -cp bin ChipLang <.cl file>
-
 
 There are five included example programs:
 * percussion.cl
