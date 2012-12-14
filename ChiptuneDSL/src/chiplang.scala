@@ -2,24 +2,21 @@ import chipLang.syntax._
 import scala.io.Source
 import chipLang.semantics._
 
-object ChipCompiler extends App {
+object ChipLang extends App {
   require(args.length == 1, "Usage: chiplang [ .cl file ].")
 
-  val program = Source.fromFile(args(0)).mkString
+  val fileName = args(0)
+  val program = Source.fromFile(fileName).mkString
 
+  println("Compiling '%s'...".format(fileName))
   ChipParser(program) match {
     case ChipParser.Success(ir, _) => {
-      println(args(0) + " parsed successfully.")
-      println("Compiling...")
-      try {
-        compile(ir)
-      }
-
-      println("Compiled output.midi successfully.")
+      // Attempt to compile intermediate representation
+      compile(ir, fileName.substring(0, fileName.indexOf('.')))
     }
-
     case ChipParser.NoSuccess(msg, _) => {
-      println("Parsing failed. " + msg)
+      // Display error returned by the parser
+      println("Parsing '%s' failed. ".format(fileName) + msg)
     }
   }
 }
