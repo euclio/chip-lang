@@ -4,12 +4,11 @@ import chipLang.ir._
 import java.io.FileInputStream
 
 package object semantics {
-
   /* 
-   * Class to encapsulate the state of the current song. It handles the
+   * Encapsulates the state of the current song. It handles the
    * stores for Verse and Phrase variables
    */
-  object SongState {
+  object State {
     // Maps to store and retrieve variables
     import scala.collection.mutable
     val verseStore = mutable.Map.empty[String, VerseStatement]
@@ -17,7 +16,7 @@ package object semantics {
   }
 
   /* 
-   * Object that represents the current Song to be compiled. This object
+   * Represents the current Song to be compiled. This object
    * wraps MIDI messages with less verbose methods. It also internally
    * keeps track of the MIDI program counter to place messages in the
    * correct locations. It handles setup and teardown of the MIDI
@@ -60,9 +59,11 @@ package object semantics {
 
     // Program counter to keep track of current position in Song
     var pc: Long = PPQ
+
+    // Holds the greatest value that the program counter has been so far
     var greatestPC = pc
 
-    // Sequence to represent the song itself
+    // Create Sequence to represent the song
     val seq = new Sequence(Sequence.PPQ, PPQ)
     val track = seq.createTrack()
 
@@ -70,7 +71,10 @@ package object semantics {
      *  Wrapper method to add a Tempo change event to the Song
      */
     def setSpeed(bpm: Int) {
+      // Conversion from bpm to milliseconds per quarter note
       val tempoInMPQ = 60000000 / bpm
+      
+      // Bit-shifting to get the data for the tempo change MIDI message
       val data = Array((tempoInMPQ >> 16) & 0xFF,
         (tempoInMPQ >> 8) & 0xFF,
         tempoInMPQ & 0xFF)
@@ -80,6 +84,10 @@ package object semantics {
       addEvent(changeSpeed)
     }
 
+    /*
+     * Helper to cut down on the syntax of adding a MidiEvent to
+     * the Song's sequence.
+     */
     private def addEvent(message: MidiMessage) {
       track.add(new MidiEvent(message, pc))
     }
@@ -138,13 +146,19 @@ package object semantics {
       greatestPC = scala.math.max(pc, greatestPC)
     }
 
+    /*
+     * Writes the Song's current sequence to a MIDI file using MIDI format '1'.
+     */
     def write() {
       tick(PPQ)
-      addEvent(new ShortMessage())
-      MidiSystem.write(seq, 1, new File("output.midi"))
+      addEvent(new ShortMessage()) // Ensure that the song is not cut off
 
+      MidiSystem.write(seq, 1, new File("output.midi"))
     }
 
+    /*
+     * Method to play the Song's current sequence
+     */
     def play() {
       sequencer.setSequence(seq)
       sequencer.start()
@@ -155,12 +169,16 @@ package object semantics {
       sequencer.close()
     }
 
+    /*
+     * Allow the user to reset the program counter to a given value
+     */
     def setProgramCounter(pc: Long) {
       this.pc = pc
     }
   }
 
   def compile(s: Song) {
+    // Play each phrase
     for (p <- s.phrases)
       addPhrase(p)
 
@@ -175,7 +193,7 @@ package object semantics {
     val phrase: PhraseStatement = p match {
       // If it's an identifier, find the name in the store and retrieve its value
       case i: PhraseIdentifier => {
-        SongState.phraseStore.get(i.name) match {
+        State.phraseStore.get(i.name) match {
           case p: Some[PhraseStatement] => p.get
           case None => throw new NoSuchFieldException("Error: phrase identifier '%s' not bound.".format(i.name))
         }
@@ -184,7 +202,7 @@ package object semantics {
       case s: PhraseStatement => s
       // If it's an assignment, add the value to the store and use the statement
       case a: PhraseAssignment => {
-        SongState.phraseStore += a.identifier -> a.phrase
+        State.phraseStore += a.identifier -> a.phrase
         a.phrase
       }
     }
@@ -199,16 +217,24 @@ package object semantics {
   }
 
   def playChannel(c: Channels) {
+    // Default channel number
     var channel = 1
 
+    // Keep track of the old program counter
     val oldPC = Song.pc
 
     for (v <- c.vs) {
+      // Return to the original program counter so new notes will overlap
       Song.setProgramCounter(oldPC)
       playVerse(v, channel)
+
+      // Increment channel so notes in a different verse 
+      // will go on a different channel
       channel += 1
     }
 
+    // Set the program counter to the greatest program counter value so far.
+    // This essentially adds rests to shorter verses so that the verses line up.
     Song.setProgramCounter(Song.greatestPC)
   }
 
@@ -217,7 +243,7 @@ package object semantics {
     val verses: List[VerseSingleton] = v match {
       // If it's an identifier, find the name in the store and retrieve its value
       case i: VerseIdentifier => {
-        SongState.verseStore.get(i.name) match {
+        State.verseStore.get(i.name) match {
           case v: Some[VerseStatement] => v.get.verses
           case None => throw new NoSuchFieldException("Error: verse identifier '%s' not bound.".format(i.name))
         }
@@ -226,12 +252,13 @@ package object semantics {
       case s: VerseStatement => s.verses
       // If the phrase is an assignment, add the value to the store and use the verses
       case a: VerseAssignment => {
-        SongState.verseStore += a.identifier -> a.statement
+        State.verseStore += a.identifier -> a.statement
         a.statement.verses
       }
     }
 
     for (s <- verses) {
+      // If an instrument is encountered, then change the instrument
       s.inst match {
         case i: Some[Instrument] => Song.changeInstrument(channel, i.get)
         case None => Unit
@@ -241,8 +268,8 @@ package object semantics {
     }
   }
 
-  def addNotes(notes: Notes, channel: Int) {
-    for (n <- notes.noteList) {
+  def addNotes(notes: List[Notation], channel: Int) {
+    for (n <- notes) {
       n match {
         case Note(Octave(octave), Sound(Pitch(pitch), accidental, Duration(modifiers, numDots))) => {
           // Increment if sharp, decrement if flat, do nothing if natural
@@ -273,13 +300,17 @@ package object semantics {
 
         case Rest(Duration(modifiers, numDots)) => {
           val duration = calculateDuration(modifiers, numDots)
-
           Song.addRest(duration, channel)
         }
       }
     }
   }
 
+  /*
+   * Takes a list of modifiers and number of dots and calculates the correct
+   * duration for a note. Uses the rules of musical notation to compute the
+   * correct value.
+   */
   def calculateDuration(modifiers: List[LengthModifier], numDots: Int) = {
     // Default duration is 1.0
     var duration = 1.0
