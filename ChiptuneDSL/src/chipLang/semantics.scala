@@ -1,7 +1,6 @@
 package chipLang
 
 import chipLang.ir._
-import java.io.FileInputStream
 
 package object semantics {
   /* 
@@ -152,11 +151,11 @@ package object semantics {
     /*
      * Writes the Song's current sequence to a MIDI file using MIDI format '1'.
      */
-    def write() {
+    def write(fileName: String) {
       tick(PPQ)
       addEvent(new ShortMessage()) // Ensure that the song is not cut off
 
-      MidiSystem.write(seq, 1, new File("output.midi"))
+      MidiSystem.write(seq, 1, new File(fileName + ".midi"))
     }
 
     /*
@@ -180,13 +179,13 @@ package object semantics {
     }
   }
 
-  def compile(s: Song) {
+  def compile(s: Song, outputFilename: String) {
     // Play each phrase
     for (p <- s.phrases)
       addPhrase(p)
 
-    Song.write()
-    println("Compilation to 'output.midi' successful.")
+    Song.write(outputFilename)
+    println("Compilation to '%s.midi' successful.".format(outputFilename))
     println("Playing chiptune...")
     Song.play()
   }
