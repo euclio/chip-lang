@@ -4,14 +4,17 @@ import scala.util.parsing.combinator._
 import chipLang.ir._
 
 object ChipParser extends RegexParsers with PackratParsers {
+  // Syntactic sugar: "ChipParser(program)"
   def apply(program: String) = parseAll(song, program)
 
+  // Ensure that whitespace is disallowed inside notes
   override def skipWhitespace = false
-  val ws = """\s*""".r
-  val wsReq = """\s+""".r
+
+  val ws = """\s*""".r // Optional whitespace
+  val wsReq = """\s+""".r // Required whitespace
 
   // song ::= { phrase, ";" };
-  def song: Parser[Song] = repsep(phrase, (ws ~ ";" ~ ws)) ^^ { case ps => Song(ps) }
+  def song: Parser[Song] = rep1sep(phrase, (ws ~ ";" ~ ws)) ^^ { case ps => Song(ps) }
 
   // identifier ::= ? any sequence of letters or numbers starting with a letter ?;
   def identifier = """[A-Za-z][A-Za-z0-9]*""".r
@@ -33,10 +36,8 @@ object ChipParser extends RegexParsers with PackratParsers {
   // bpm ::= "(", number, ")";
   def bpm: Parser[Int] = ("(" ~ ws) ~> """\d+""".r <~ (ws ~ ")") ^^ { _.toInt }
 
-  // channels ::= { verse, "&" } | verse;
-  def channels: Parser[Channels] =
-    repsep(verse, (ws ~ "&" ~ ws)) ^^ { case vs => Channels(vs) } |
-      verse ^^ { case v => Channels(List(v)) }
+  // channels ::= verse, { "&", verse }
+  def channels: Parser[Channels] = rep1sep(verse, (ws ~ "&" ~ ws)) ^^ { case vs => Channels(vs) }
 
   // verse ::= assignment, verseList | identifier | verseList;
   lazy val verse: PackratParser[Verse] =
@@ -44,20 +45,23 @@ object ChipParser extends RegexParsers with PackratParsers {
       identifier ^^ { VerseIdentifier(_) } |
       verseList ^^ { VerseStatement(_) }
 
-  // verseList ::= verseSingleton, "*", number | { verseSingleton, "+" } | verseSingleton;
+  // verseList ::= verseSingleton, "*", number | { verseSingleton, "+" };
   lazy val verseList: PackratParser[List[VerseSingleton]] =
     verseSingleton ~ (ws ~ "*" ~ ws ~> """\d+""".r) ^^ { case vs ~ n => List.fill(n.toInt)(vs) } |
-      repsep(verseSingleton, (ws ~ "+" ~ ws)) |
-      verseSingleton ^^ { List(_) }
+      repsep(verseSingleton, (ws ~ "+" ~ ws))
 
   // verseSingleton ::= [ "|", instrument, "|" ], notes;
   def verseSingleton: Parser[VerseSingleton] = opt("|" ~> instrument <~ "|") ~ ws ~ notes ^^ { case i ~ _ ~ ns => VerseSingleton(i, ns) }
 
-  // notes ::= octave, "[", { octaveless, ws }, "]" | { notation, ws } | notes, ws, notes;
-  def notes: Parser[Notes] =
-    octave ~ ws ~ ("[" ~ ws ~> repsep(octaveless, wsReq) <~ ws ~ "]") ^^ { case o ~ _ ~ ols => new Notes(o, ols) } |
-      repsep(notation, wsReq) ^^ { case notations => Notes(notations) } |
-      notes ~ wsReq ~ notes ^^ { case n1 ~ _ ~ n2 => new Notes(n1, n2) }
+  // notes ::= octave, "[", octaveless, { ws, octaveless }, "]" | notation, { notation, ws } | notes, { ws, notes };
+  lazy val notes: PackratParser[List[Notation]] =
+    rep1sep(notes, wsReq) ^^ { _.flatten } |
+      octave ~ ws ~ ("[" ~ ws ~> rep1sep(octaveless, wsReq) <~ ws ~ "]") ^^ {
+        case octave ~ _ ~ octavelessList => for (octaveless <- octavelessList) yield octaveless match {
+          case s: Sound => Note(octave, s)
+          case r: Rest => r
+        }
+      } | rep1sep(notation, wsReq)
 
   // instrument ::= "SQ1" | "SQ2" | "SQ3" | "SQ4" | "SAW" | "TRI" | "SIN" | "WHI" | "SQD";
   def instrument: Parser[Instrument] =
@@ -92,9 +96,9 @@ object ChipParser extends RegexParsers with PackratParsers {
       case pitch ~ acc ~ dur => Sound(pitch, acc.getOrElse(Natural), dur)
     }
 
-  // octave ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8";
+  // octave ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
   def octave: Parser[Octave] =
-    "[0-8]".r ^^ { s => Octave(s.toInt) }
+    "[0-9]".r ^^ { s => Octave(s.toInt) }
 
   // pitch ::= "A" | "B" | "C" | "D" | "E" | "F" | "G";
   def pitch: Parser[Pitch] =
