@@ -1,0 +1,7 @@
+/.cache
+/output.midi
+
+/bin/*
+*.midi
+.project
+.classpath
