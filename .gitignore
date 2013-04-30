@@ -5,3 +5,4 @@
 *.midi
 .project
 .classpath
+.settings
