@@ -8,6 +8,7 @@ ChipLang requires Java 7 and Scala 2.10 to run.
 
 To build the language, type
 
+    mkdir bin
 	scalac -d bin -cp resources src/chipLang/*.scala
 
 Running the language
@@ -15,7 +16,7 @@ Running the language
 
 To run chipLang, type
 
-	scala -cp bin ChipLang <.cl file>
+	scala -cp bin/ChipLang <.cl file>
 
 There are five included example programs in the "example" folder:
 * percussion.cl
