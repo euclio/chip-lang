@@ -41,7 +41,7 @@ package object semantics {
       SquareDown -> 8)
 
     // Initialize Chiptune SoundBank
-    val soundbank = new SF2Soundbank(new File("resources/Famicom.sf2"))
+    val soundbank = new SF2Soundbank(getClass.getResource("/Famicom.sf2"))
 
     // Retrieve a sequencer that is not connected to the default MIDI player
     val sequencer = MidiSystem.getSequencer(false)
