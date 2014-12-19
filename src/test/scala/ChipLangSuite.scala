@@ -1,7 +1,7 @@
 package chipLang.test
 
 import org.scalatest._
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.Matchers
 import chipLang.ir._
 import chipLang.syntax._
 import chipLang.semantics._
@@ -115,7 +115,7 @@ class SongTests extends FunSpec with ChipFunctions {
     }
 }
 
-trait ChipFunctions extends ShouldMatchers {
+trait ChipFunctions extends Matchers {
   def success = true
   def failure = false
   
