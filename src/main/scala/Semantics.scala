@@ -3,7 +3,7 @@ package chipLang
 import chipLang.ir._
 
 package object semantics {
-  /* 
+  /*
    * Encapsulates the state of the current song. It handles the
    * stores for Verse and Phrase variables
    */
@@ -14,7 +14,7 @@ package object semantics {
     val phraseStore = mutable.Map.empty[String, PhraseStatement]
   }
 
-  /* 
+  /*
    * Represents the current Song to be compiled. This object
    * wraps MIDI messages with less verbose methods. It also internally
    * keeps track of the MIDI program counter to place messages in the
@@ -38,23 +38,24 @@ package object semantics {
       Triangle -> 5,
       Sine -> 6,
       WhiteNoise -> 7,
-      SquareDown -> 8)
+      SquareDown -> 8
+    )
 
     // Initialize Chiptune SoundBank
     val soundbank = new SF2Soundbank(getClass.getResource("/Famicom.sf2"))
 
     // Retrieve a sequencer that is not connected to the default MIDI player
     val sequencer = MidiSystem.getSequencer(false)
-    sequencer.open()
+    sequencer.open
 
     // Unload default instruments and load Chiptune instruments on Synthesizer
-    val synth = MidiSystem.getSynthesizer()
-    synth.open()
-    synth.unloadAllInstruments(synth.getDefaultSoundbank())
+    val synth = MidiSystem.getSynthesizer
+    synth.open
+    synth.unloadAllInstruments(synth.getDefaultSoundbank)
     synth.loadAllInstruments(soundbank)
 
     // Connect sequencer output to synthesizer input
-    sequencer.getTransmitter().setReceiver(synth.getReceiver())
+    sequencer.getTransmitter.setReceiver(synth.getReceiver)
 
     // Program counter to keep track of current position in Song
     var pc: Long = PPQ
@@ -64,7 +65,7 @@ package object semantics {
 
     // Create Sequence to represent the song
     val seq = new Sequence(Sequence.PPQ, PPQ)
-    val track = seq.createTrack()
+    val track = seq.createTrack
 
     /*
      *  Wrapper method to add a Tempo change event to the Song
@@ -72,7 +73,7 @@ package object semantics {
     def setSpeed(bpm: Int) {
       // Conversion from bpm to milliseconds per quarter note
       val tempoInMPQ = 60000000 / bpm
-      
+
       // Bit-shifting to get the data for the tempo change MIDI message
       val data = Array((tempoInMPQ >> 16) & 0xFF,
         (tempoInMPQ >> 8) & 0xFF,
@@ -114,7 +115,7 @@ package object semantics {
     def addNote(pitch: Int, duration: Double, channel: Int) {
       // MIDI only supports 16 channels
       if (channel > 16) throw new IndexOutOfBoundsException("Can only play 16 simultaneous channels")
-      
+
       // Note volume
       val Pressure = 80
 
